@@ -116,9 +116,26 @@ export const refresh = async (req, res) => {
 };
 
 /* ── Firebase Admin Login ── */
+import admin from '../config/firebaseAdmin.js';
+
 export const firebaseAdminLogin = async (req, res) => {
   try {
-    const { email, displayName, photoURL } = req.body;
+    const { idToken } = req.body;
+    
+    if (!idToken) {
+      return res.status(401).json({ message: 'No authentication token provided.' });
+    }
+
+    // Verify token with Firebase Admin
+    let decodedToken;
+    try {
+      decodedToken = await admin.auth().verifyIdToken(idToken);
+    } catch (firebaseErr) {
+      console.error('Firebase Token Verification Error:', firebaseErr.message);
+      return res.status(403).json({ message: 'Invalid or expired Firebase token.' });
+    }
+
+    const { email, name: displayName, picture: photoURL, uid } = decodedToken;
     
     // Strict security check: only specific email is allowed
     if (email !== ADMIN_EMAIL) {
