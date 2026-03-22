@@ -4,7 +4,7 @@ import crypto from 'crypto';
 import nodemailer from 'nodemailer';
 import User from '../models/User.js';
 import Token from '../models/Token.js';
-import { sendWelcomeEmail, sendLoginAlertEmail } from '../cron.js';
+import { sendWelcomeEmail, sendWelcomeSMS, sendLoginAlertEmail } from '../cron.js';
 
 // Allowed Firebase Admin Email
 const ADMIN_EMAIL = 'sasindragandla@gmail.com';
@@ -33,8 +33,9 @@ export const register = async (req, res) => {
 
     const user = await User.create({ name, email, password, phone: phone || null });
 
-    // Send the professional branded Welcome Email (non-blocking)
+    // Send the professional branded Welcome Email and SMS (non-blocking)
     sendWelcomeEmail(user).catch(console.error);
+    sendWelcomeSMS(user).catch(console.error);
 
     // Auto-login: return tokens immediately
     const accessToken  = generateAccessToken(user._id);

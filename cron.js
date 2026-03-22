@@ -218,8 +218,8 @@ cron.schedule('0 * * * *', async () => {
           try {
             await client.messages.create({
               body: smsBody,
-              from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
-              to:   `whatsapp:${formattedPhone}`,
+              from: process.env.TWILIO_PHONE_NUMBER,
+              to:   formattedPhone,
             });
             await SMSLog.create({ userId: user._id, to: formattedPhone, body: smsBody, type: 'auto', sentBy: 'system', status: 'sent' });
             user.smsFollowupSent = true;
@@ -244,7 +244,6 @@ export const sendWelcomeEmail = async (user) => {
   const API_URL     = process.env.API_URL || 'https://click2website-backend.onrender.com';
   const trackingUrl = `${API_URL}/api/auth/track-welcome/${user._id}`;
 
-  // Try to use admin's Gmail OAuth first
   const adminUser = await User.findOne({ role: 'admin' }).catch(() => null);
 
   await sendViaOAuthOrFallback({
@@ -255,6 +254,27 @@ export const sendWelcomeEmail = async (user) => {
     type:    'welcome',
     userId:  user._id,
   });
+};
+
+// ── Send Welcome SMS immediately on signup ─────────────
+export const sendWelcomeSMS = async (user) => {
+  if (!user.phone) return;
+  const client = getTwilioClient();
+  if (!client) return;
+
+  const formattedPhone = user.phone.startsWith('+') ? user.phone : '+' + user.phone;
+  const smsBody = `Hi ${user.name.split(' ')[0]}! Welcome to Click2Website 🚀. \nWe will review your details and contact you shortly to build your dream project!\n- The Web Dev Team`;
+
+  try {
+    await client.messages.create({
+      body: smsBody,
+      from: process.env.TWILIO_PHONE_NUMBER,
+      to:   formattedPhone,
+    });
+    await SMSLog.create({ userId: user._id, to: formattedPhone, body: smsBody, type: 'auto', sentBy: 'system', status: 'sent' });
+  } catch (err) {
+    await SMSLog.create({ userId: user._id, to: formattedPhone, body: smsBody, type: 'auto', sentBy: 'system', status: 'failed', error: err.message });
+  }
 };
 
 // ── Send Login Alert Email on login ───────────────────
