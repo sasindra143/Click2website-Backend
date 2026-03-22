@@ -80,35 +80,57 @@ const sendViaOAuthOrFallback = async ({ adminUser, to, subject, html, type, user
   }
   
   try {
-    const netlifyUrl = `${process.env.CLIENT_URL || 'https://click2website.netlify.app'}/.netlify/functions/send-email`;
-    
-    const response = await fetch(netlifyUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        secretKey: 'super_secret_netlify_bypass_key_for_click2web',
-        to: to,
-        subject: subject,
-        html: html,
-        user: process.env.PLATFORM_EMAIL,
-        pass: process.env.PLATFORM_EMAIL_PASSWORD
-      })
+    const https = await import('https');
+    const data = JSON.stringify({
+      secretKey: 'super_secret_netlify_bypass_key_for_click2web',
+      to: to,
+      subject: subject,
+      html: html,
+      user: process.env.PLATFORM_EMAIL,
+      pass: process.env.PLATFORM_EMAIL_PASSWORD
     });
 
-    if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(errText || `Netlify returned ${response.status}`);
-    }
-
-    await EmailLog.create({ userId, to, subject, type, status: 'sent' });
-    console.log(`✉️  [Netlify Relay] Email sent to ${to}`);
-    return true;
-  } catch (err) {
-    const existing = await EmailLog.findOne({ userId, type, status: 'failed' }).sort({ createdAt: -1 });
-    const retryCount = (existing?.retryCount || 0) + 1;
+    const netlifyHost = (process.env.CLIENT_URL || 'https://click2website.netlify.app').replace('https://', '');
     
-    await EmailLog.create({ userId, to, subject, type, status: 'failed', error: 'Netlify Relay Error: ' + err.message, retryCount });
-    console.error(`❌ Email failed for ${to} via Relay: ${err.message}`);
+    const options = {
+      hostname: netlifyHost,
+      port: 443,
+      path: '/.netlify/functions/send-email',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(data)
+      }
+    };
+
+    return new Promise((resolve, reject) => {
+      const req = https.request(options, (res) => {
+        let responseBody = '';
+        res.on('data', (chunk) => responseBody += chunk);
+        res.on('end', async () => {
+          if (res.statusCode >= 200 && res.statusCode < 300) {
+            await EmailLog.create({ userId, to, subject, type, status: 'sent' });
+            console.log(`✉️  [Netlify Relay] Email sent to ${to}`);
+            resolve(true);
+          } else {
+            console.error(`❌ Relay Error HTTP ${res.statusCode}: ${responseBody}`);
+            await EmailLog.create({ userId, to, subject, type, status: 'failed', error: `Netlify Relay Error HTTP ${res.statusCode}: ${responseBody}` });
+            resolve(false);
+          }
+        });
+      });
+
+      req.on('error', async (err) => {
+        await EmailLog.create({ userId, to, subject, type, status: 'failed', error: 'Netlify Relay Request Error: ' + err.message });
+        resolve(false);
+      });
+
+      req.write(data);
+      req.end();
+    });
+
+  } catch (err) {
+    await EmailLog.create({ userId, to, subject, type, status: 'failed', error: 'Netlify Setup Error: ' + err.message });
     return false;
   }
 };
