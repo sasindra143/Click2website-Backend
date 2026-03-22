@@ -65,6 +65,7 @@ app.use(express.urlencoded({ extended: true }));
 // ─────────────────────────────────────────────
 app.use('/api/auth', authRoutes);
 app.use('/api/google', googleRoutes);
+app.use('/auth/google', googleRoutes); // Fallback for incorrect user config
 app.use('/api/email', emailRoutes);
 app.use('/api/sms', smsRoutes);
 app.use('/api/admin', adminRoutes);
