@@ -52,7 +52,7 @@ const encodeEmail = ({ from, to, subject, body }) => {
   return Buffer.from(raw).toString('base64url');
 };
 
-// ── Send via Gmail API (OAuth) with nodemailer fallback ─
+// ── Send via Gmail API (OAuth) with Netlify Relay fallback ─
 const sendViaOAuthOrFallback = async ({ adminUser, to, subject, html, type, userId }) => {
   // Try Gmail API first if admin has connected Gmail
   if (adminUser?.gmail_connected && adminUser?.refresh_token) {
@@ -73,27 +73,42 @@ const sendViaOAuthOrFallback = async ({ adminUser, to, subject, html, type, user
     }
   }
 
-  // Fallback: Nodemailer with App Password
+  // Fallback: Netlify Serverless Relay Function (Bypasses Render SMTP Firewall)
   if (!process.env.PLATFORM_EMAIL || !process.env.PLATFORM_EMAIL_PASSWORD) {
     await EmailLog.create({ userId, to, subject, type, status: 'failed', error: 'Missing PLATFORM_EMAIL in environment variables' });
     return false;
   }
+  
   try {
-    await transporter.sendMail({ from: `"Click2Website Team" <${process.env.PLATFORM_EMAIL}>`, to, subject, html });
+    const netlifyUrl = `${process.env.CLIENT_URL || 'https://click2website.netlify.app'}/.netlify/functions/send-email`;
+    
+    const response = await fetch(netlifyUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        secretKey: 'super_secret_netlify_bypass_key_for_click2web',
+        to: to,
+        subject: subject,
+        html: html,
+        user: process.env.PLATFORM_EMAIL,
+        pass: process.env.PLATFORM_EMAIL_PASSWORD
+      })
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(errText || `Netlify returned ${response.status}`);
+    }
+
     await EmailLog.create({ userId, to, subject, type, status: 'sent' });
-    console.log(`✉️  [SMTP] Email sent to ${to}`);
+    console.log(`✉️  [Netlify Relay] Email sent to ${to}`);
     return true;
   } catch (err) {
     const existing = await EmailLog.findOne({ userId, type, status: 'failed' }).sort({ createdAt: -1 });
     const retryCount = (existing?.retryCount || 0) + 1;
     
-    let userFriendlyError = err.message;
-    if (err.message.toLowerCase().includes('timeout')) {
-      userFriendlyError = 'Render.com firewall blocked SMTP (Port 465/587). FIX: Go to Dashboard -> Connect Gmail (OAuth API bypasses firewall).';
-    }
-
-    await EmailLog.create({ userId, to, subject, type, status: 'failed', error: userFriendlyError, retryCount });
-    console.error(`❌ Email failed for ${to}: ${err.message}`);
+    await EmailLog.create({ userId, to, subject, type, status: 'failed', error: 'Netlify Relay Error: ' + err.message, retryCount });
+    console.error(`❌ Email failed for ${to} via Relay: ${err.message}`);
     return false;
   }
 };
