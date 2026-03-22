@@ -16,7 +16,7 @@ const tokenSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ['refresh', 'blacklist'],
+      enum: ['refresh', 'blacklist', 'reset'],
       default: 'refresh',
     },
     expiresAt: {

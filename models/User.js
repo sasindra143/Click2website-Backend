@@ -30,6 +30,9 @@ const userSchema = new mongoose.Schema(
     token_expiry: { type: Date, default: null },
     gmail_connected: { type: Boolean, default: false },
 
+    // Contact
+    phone: { type: String, default: null },
+
     // Tracking
     emailsSent: { type: Number, default: 0 },
     smsSent: { type: Number, default: 0 },
@@ -38,6 +41,12 @@ const userSchema = new mongoose.Schema(
     avatar: { type: String, default: '' },
     welcomeEmailOpened: { type: Boolean, default: false },
     welcomeEmailReminderSent: { type: Boolean, default: false },
+
+    // Automation follow-up flags
+    automationPaused: { type: Boolean, default: false },   // Admin can pause follow-ups
+    lastReminderAt: { type: Date, default: null },         // When was the last reminder sent
+    reminderCount: { type: Number, default: 0 },          // Number of reminders sent so far
+    smsFollowupSent: { type: Boolean, default: false },    // Has the automated SMS been dispatched
   },
   { timestamps: true }
 );

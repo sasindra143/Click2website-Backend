@@ -1,12 +1,19 @@
 import { google } from 'googleapis';
 import User from '../models/User.js';
 
-const makeOAuth2Client = () =>
-  new google.auth.OAuth2(
+const makeOAuth2Client = () => {
+  let redirectUri = process.env.GOOGLE_REDIRECT_URI;
+  if (!redirectUri || redirectUri.includes('localhost') && process.env.NODE_ENV === 'production') {
+    const apiUrl = process.env.API_URL || 'https://click2website-backend.onrender.com';
+    redirectUri = `${apiUrl.replace(/\/api$/, '')}/api/google/callback`;
+  }
+  
+  return new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
-    process.env.GOOGLE_REDIRECT_URI
+    redirectUri
   );
+};
 
 const SCOPES = [
   'https://www.googleapis.com/auth/gmail.send',
