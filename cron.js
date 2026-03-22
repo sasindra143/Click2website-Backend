@@ -259,13 +259,16 @@ cron.schedule('0 * * * *', async () => {
             await SMSLog.create({ userId: user._id, to: formattedPhone, body: smsBody, type: 'auto', sentBy: 'system', status: 'failed', error: 'Missing TWILIO_ACCOUNT_SID or TWILIO_AUTH_TOKEN in Render variables' });
           } else {
             try {
+              const waFrom = `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`;
+              const waTo   = `whatsapp:${formattedPhone}`;
+              
               await client.messages.create({
                 body: smsBody,
-                from: process.env.TWILIO_PHONE_NUMBER,
-                to:   formattedPhone,
+                from: waFrom,
+                to:   waTo,
               });
               await SMSLog.create({ userId: user._id, to: formattedPhone, body: smsBody, type: 'auto', sentBy: 'system', status: 'sent' });
-              console.log(`📱 SMS reminder #${newCount} sent to ${user.phone}`);
+              console.log(`📱 WhatsApp reminder #${newCount} sent to ${user.phone}`);
             } catch (err) {
               await SMSLog.create({ userId: user._id, to: formattedPhone, body: smsBody, type: 'auto', sentBy: 'system', status: 'failed', error: err.message });
             }
@@ -311,10 +314,13 @@ export const sendWelcomeSMS = async (user) => {
   }
 
   try {
+    const waFrom = `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`;
+    const waTo   = `whatsapp:${formattedPhone}`;
+
     await client.messages.create({
       body: smsBody,
-      from: process.env.TWILIO_PHONE_NUMBER,
-      to:   formattedPhone,
+      from: waFrom,
+      to:   waTo,
     });
     await SMSLog.create({ userId: user._id, to: formattedPhone, body: smsBody, type: 'auto', sentBy: 'system', status: 'sent' });
   } catch (err) {

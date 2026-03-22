@@ -78,8 +78,8 @@ export const sendCustomSMS = async (req, res) => {
     const formattedPhone = user.phone.startsWith('+') ? user.phone : '+' + user.phone;
     await client.messages.create({
       body: message,
-      from: process.env.TWILIO_PHONE_NUMBER,
-      to:   formattedPhone,
+      from: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
+      to:   `whatsapp:${formattedPhone}`,
     });
 
     // Log the SMS
