@@ -1,5 +1,7 @@
 import twilio from 'twilio';
 import User from '../models/User.js';
+import EmailLog from '../models/EmailLog.js';
+import SMSLog from '../models/SMSLog.js';
 
 const getTwilioClient = () => {
   const sid   = process.env.TWILIO_ACCOUNT_SID;
@@ -80,6 +82,16 @@ export const sendCustomSMS = async (req, res) => {
       to:   `whatsapp:${formattedPhone}`,
     });
 
+    // Log the SMS
+    await SMSLog.create({
+      userId:  user._id,
+      to:      formattedPhone,
+      body:    message,
+      type:    'custom',
+      sentBy:  'admin',
+      status:  'sent',
+    });
+
     // Increment admin's smsSent counter
     await User.findByIdAndUpdate(req.user._id, { $inc: { smsSent: 1 } });
     // Mark automation as paused since admin sent a custom override
@@ -115,6 +127,32 @@ export const getDashboardStats = async (req, res) => {
     });
   } catch (err) {
     console.error('Stats error:', err.message);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+/* ── GET /api/admin/email-logs ── */
+export const getEmailLogs = async (req, res) => {
+  try {
+    const logs = await EmailLog.find({})
+      .populate('userId', 'name email')
+      .sort({ createdAt: -1 })
+      .limit(200);
+    res.json(logs);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+/* ── GET /api/admin/sms-logs ── */
+export const getSMSLogs = async (req, res) => {
+  try {
+    const logs = await SMSLog.find({})
+      .populate('userId', 'name email')
+      .sort({ createdAt: -1 })
+      .limit(200);
+    res.json(logs);
+  } catch (err) {
     res.status(500).json({ message: 'Server error' });
   }
 };
