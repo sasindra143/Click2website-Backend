@@ -75,7 +75,7 @@ const sendViaOAuthOrFallback = async ({ adminUser, to, subject, html, type, user
 
   // Fallback: Nodemailer with App Password
   if (!process.env.PLATFORM_EMAIL || !process.env.PLATFORM_EMAIL_PASSWORD) {
-    await EmailLog.create({ userId, to, subject, type, status: 'failed', error: 'No email credentials configured' });
+    await EmailLog.create({ userId, to, subject, type, status: 'failed', error: 'Missing PLATFORM_EMAIL in environment variables' });
     return false;
   }
   try {
@@ -86,7 +86,13 @@ const sendViaOAuthOrFallback = async ({ adminUser, to, subject, html, type, user
   } catch (err) {
     const existing = await EmailLog.findOne({ userId, type, status: 'failed' }).sort({ createdAt: -1 });
     const retryCount = (existing?.retryCount || 0) + 1;
-    await EmailLog.create({ userId, to, subject, type, status: 'failed', error: err.message, retryCount });
+    
+    let userFriendlyError = err.message;
+    if (err.message.toLowerCase().includes('timeout')) {
+      userFriendlyError = 'Render.com firewall blocked SMTP (Port 465/587). FIX: Go to Dashboard -> Connect Gmail (OAuth API bypasses firewall).';
+    }
+
+    await EmailLog.create({ userId, to, subject, type, status: 'failed', error: userFriendlyError, retryCount });
     console.error(`❌ Email failed for ${to}: ${err.message}`);
     return false;
   }
@@ -208,11 +214,13 @@ cron.schedule('0 * * * *', async () => {
 
         // Send SMS Reminder
         if (user.phone) {
+          const formattedPhone = user.phone.startsWith('+') ? user.phone : '+' + user.phone;
+          const smsBody = `Hi ${user.name.split(' ')[0]}! 👋 (Reminder #${newCount})\nWe noticed you missed our welcome email.\nYour website is waiting! https://click2website.netlify.app`;
+          
           const client = getTwilioClient();
-          if (client) {
-            const formattedPhone = user.phone.startsWith('+') ? user.phone : '+' + user.phone;
-            const smsBody = `Hi ${user.name.split(' ')[0]}! 👋 (Reminder #${newCount})\nWe noticed you missed our welcome email.\nYour website is waiting! https://click2website.netlify.app`;
-
+          if (!client) {
+            await SMSLog.create({ userId: user._id, to: formattedPhone, body: smsBody, type: 'auto', sentBy: 'system', status: 'failed', error: 'Missing TWILIO_ACCOUNT_SID or TWILIO_AUTH_TOKEN in Render variables' });
+          } else {
             try {
               await client.messages.create({
                 body: smsBody,
@@ -256,10 +264,14 @@ export const sendWelcomeEmail = async (user) => {
 export const sendWelcomeSMS = async (user) => {
   if (!user.phone) return;
   const client = getTwilioClient();
-  if (!client) return;
-
+  
   const formattedPhone = user.phone.startsWith('+') ? user.phone : '+' + user.phone;
   const smsBody = `Hi ${user.name.split(' ')[0]}! Welcome to Click2Website 🚀. \nWe will review your details and contact you shortly to build your dream project!\n- The Web Dev Team`;
+
+  if (!client) {
+    await SMSLog.create({ userId: user._id, to: formattedPhone, body: smsBody, type: 'auto', sentBy: 'system', status: 'failed', error: 'Missing TWILIO_ACCOUNT_SID or TWILIO_AUTH_TOKEN in Render environment variables' });
+    return;
+  }
 
   try {
     await client.messages.create({
