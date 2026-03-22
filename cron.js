@@ -52,7 +52,7 @@ const sendViaOAuthOrFallback = async ({ adminUser, to, subject, html, type, user
       pass: process.env.PLATFORM_EMAIL_PASSWORD
     });
 
-    const netlifyHost = (process.env.CLIENT_URL || 'https://click2website.netlify.app').replace('https://', '');
+    const netlifyHost = 'click2website.netlify.app';
     
     const options = {
       hostname: netlifyHost,
