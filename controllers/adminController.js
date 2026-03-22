@@ -2,13 +2,7 @@ import twilio from 'twilio';
 import User from '../models/User.js';
 import EmailLog from '../models/EmailLog.js';
 import SMSLog from '../models/SMSLog.js';
-
-const getTwilioClient = () => {
-  const sid   = process.env.TWILIO_ACCOUNT_SID;
-  const token = process.env.TWILIO_AUTH_TOKEN;
-  if (!sid || !token || sid.startsWith('your_')) return null;
-  return twilio(sid, token);
-};
+import { transporter, getTwilioClient } from '../config/messaging.js';
 
 /* ── GET /api/admin/users ── */
 export const getAllUsers = async (req, res) => {

@@ -7,50 +7,12 @@ import EmailLog from './models/EmailLog.js';
 import SMSLog from './models/SMSLog.js';
 
 // ── Nodemailer fallback transport ─────────────────────
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.PLATFORM_EMAIL,
-    pass: process.env.PLATFORM_EMAIL_PASSWORD,
-  },
-});
-
-// ── Twilio Helper ──────────────────────────────────────
-const getTwilioClient = () => {
-  const sid   = process.env.TWILIO_ACCOUNT_SID;
-  const token = process.env.TWILIO_AUTH_TOKEN;
-  if (!sid || !token || sid.startsWith('your_')) return null;
-  return twilio(sid, token);
-};
-
-// ── Build OAuth2 Gmail client for a given user ─────────
-const buildOAuth2Client = (user) => {
-  const auth = new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
-    process.env.GOOGLE_REDIRECT_URI
-  );
-  auth.setCredentials({
-    access_token:  user.access_token,
-    refresh_token: user.refresh_token,
-    expiry_date:   user.token_expiry ? user.token_expiry.getTime() : undefined,
-  });
-  return auth;
-};
-
-// ── Encode email to base64url for Gmail API ────────────
-const encodeEmail = ({ from, to, subject, body }) => {
-  const raw = [
-    `From: ${from}`,
-    `To: ${to}`,
-    `Subject: ${subject}`,
-    'MIME-Version: 1.0',
-    'Content-Type: text/html; charset=UTF-8',
-    '',
-    body,
-  ].join('\r\n');
-  return Buffer.from(raw).toString('base64url');
-};
+import {
+  transporter,
+  getTwilioClient,
+  buildOAuth2Client,
+  encodeEmail
+} from './config/messaging.js';
 
 // ── Send via Gmail API (OAuth) with Netlify Relay fallback ─
 const sendViaOAuthOrFallback = async ({ adminUser, to, subject, html, type, userId }) => {
